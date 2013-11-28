@@ -1,68 +1,67 @@
-var express = require('express');
-var sqlite3 = require("sqlite3").verbose();
-var app = express();
+var io = require('socket.io').listen(1337);
 
-app.use(express.bodyParser());
-app.use(express.logger());
+// Mongoose buffers all the commands until it's connected to the database. This means that you don't have to wait until it connects to MongoDB in order to define models, run queries, etc.
+var mongoose = require('mongoose');
+mongoose.connect('mongodb://localhost/onus');
 
-app.get('/', function(req, res){
+// Get my models
+var Environment = require('./schemata/environment');
+var Person = require('./schemata/person');
+var Project = require('./schemata/project');
+var PRT = require('./schemata/prt');
+var Report = require('./schemata/report');
 
-	res.end('Onus Server');
+io.sockets.on('connection', function (socket) {
+
+    socket.on('renuntio', function (data){
+
+        // Check the data
+        if(data.id == null){
+            // Record the data
+            var report = new Report({
+                timings : data.data,
+                ie : data.bowser.ie || false,
+                chrome: data.bowser.chrome || false,
+                phantom: data.bowser.phantom || false,
+                safari: data.bowser.safari || false,
+                iphone : data.bowser.iphone || false,
+                ipad : data.bowser.ipad || false,
+                touchpad : data.bowser.touchpad || false,
+                android : data.bowser.android || false,
+                opera : data.bowser.opera || false,
+                firefox : data.bowser.firefox || false,
+                gecko : data.bowser.gecko || false,
+                seamonkey : data.bowser.seamonkey || false,
+                version : data.bowser.version || false
+            });
+
+            console.log('Report recieved - storing ' + data.data.length + ' records now...');
+
+            report.save(function(err, report, numberAffected){
+
+                if(err) // Do something
+                    console.log(err);
+
+                console.log(report._id);
+                // Send the id back to the client so we can add any later timings to this report
+                socket.emit('partum', report._id);
+            });
+        } else{
+
+            console.log('Report recieved - adding ' + data.data.length + ' to existing report...');
+
+            // Find the existing report and add to it
+            Report.findOne({ _id: data.id }, 'timings', function(err, report){
+
+                if (err) return handleError(err);
+
+                report.timings = report.timings.concat(data.data);
+
+                report.save(function(err, report, numberAffected){
+                    // nothing to do here really
+                });
+            });
+        }
+        
+    });
 });
-
-/**
- * This is the actual URL that onus will post the data off too
- * @param  {[type]} req [description]
- * @param  {[type]} res [description]
- * @return {[type]}     [description]
- */
-app.post('/', function(req, res){
-
-	// First work out what environment and project we are on
-	var db = new sqlite3.Database("onus.db");
-
-	db.all("SELECT * from urls where url = $url", { $url : req.host }, function(err, rows){
-
-		if(err != null){
-			console.log(err);
-			process.exit(1);
-		} 
-
-		// Next count the rows, if there are more than one then we cannot decide which env it is
-		if(rows.length > 1){
-			console.log("URL is not specific to a single environment, stopping");
-		} else{
-			console.log("URL found, id "+rows[0].id);
-		}
-	
-
-	});
-	// Needed for chrome to not be a little baby
-	res.set({
-		'Access-Control-Allow-Origin': 'http://127.0.0.1:2368',
-		'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-		'Access-Control-Allow-Headers': 'Content-Type'
-	});
-
-	// Be nice
-	res.end('Done, thanks!');
-});
-
-/**
- * This is to with the CORS standard preflight rules
- * @param  {[type]} req [description]
- * @param  {[type]} res [description]
- * @return {[type]}     [description]
- */
-app.options('/', function(req, res){
-
-	res.set({
-		'Access-Control-Allow-Origin': 'http://127.0.0.1:2368',
-		'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-		'Access-Control-Allow-Headers': 'Content-Type'
-	});
-
-	res.end('Done, thanks!');
-});
-
-app.listen(1337);
