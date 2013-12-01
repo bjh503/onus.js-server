@@ -21,4 +21,4 @@ var Report = new Schema({
     version : String,
 });
 
-module.exports = mongoose.model('Report', Report);
+module.exports = Report;

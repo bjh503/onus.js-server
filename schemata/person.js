@@ -1,4 +1,5 @@
 var mongoose = require('mongoose');
+var Project = require('./project');
 
 var Schema = mongoose.Schema
   , ObjectId = Schema.ObjectId;
@@ -9,7 +10,8 @@ var Person = new Schema({
         last : String
     },
    	email	: { type: String, required: true, index: { unique: true, sparse: true } },
-   	alive	: Boolean
+   	alive	: Boolean,
+    projects: [Project]
 });
 
 /**
